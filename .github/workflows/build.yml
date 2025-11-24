@@ -55,7 +55,7 @@ jobs:
           docker run \
             --network="host" \
             -v ${{ github.workspace }}:/zap/wrk \
-            owasp/zap2docker-weekly \
+            ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8000 \
             -r zap_report.html
