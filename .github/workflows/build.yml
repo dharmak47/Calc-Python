@@ -69,7 +69,7 @@ jobs:
         run: |
           docker run -d \
             --network zapnet \
-            --name myapp \
+            --name localhost \
             -p 8000:8000 \
             myapp
           sleep 15
@@ -78,7 +78,7 @@ jobs:
       # 5. Verify Application Health
       # -------------------------
       - name: Verify App is Running
-        run: curl http://myapp:8000 || exit 1
+        run: curl http://localhost:8000 || exit 1
 
       # -------------------------
       # 6. OWASP ZAP Full Scan
