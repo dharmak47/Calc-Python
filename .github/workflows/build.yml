@@ -1,4 +1,4 @@
-name: Build
+name: Build, Test, SonarQube & ZAP Scan
 
 on:
   push:
@@ -6,65 +6,71 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
 
 jobs:
-  sonarqube:
-    name: SonarQube + Docker + ZAP DAST
+
+  build_test_sonar:
+    name: Build, Test & SonarQube
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # 1. Checkout Code
-      # -------------------------
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      # -------------------------
-      # 2. SonarQube Scan
-      # -------------------------
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          args: >
-            -Dsonar.projectKey=dharmak47_Calc-Python
-            -Dsonar.organization=dharmak47
-            -Dsonar.sources=.
+          python-version: "3.12"
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Unit Tests with Coverage
+        run: |
+          pip install pytest pytest-cov
+          pytest --cov=. --cov-report=xml
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-      # -------------------------
-      # 3. Build Docker Image
-      # -------------------------
-      - name: Build Docker Image
-        run: |
-          docker build -t calc-python:latest .
-
-      # -------------------------
-      # 4. Run Application in Docker
-      # -------------------------
-      - name: Run App Container
-        run: |
-          docker run -d -p 8000:8000 --name calc-app calc-python:latest
-
-      # -------------------------
-      # 5. OWASP ZAP DAST Scan (Baseline)
-      # -------------------------
-      - name: OWASP ZAP Baseline Scan
-        run: |
-          docker run \
-            --network="host" \
-            -v ${{ github.workspace }}:/zap/wrk \
-            ghcr.io/zaproxy/zaproxy:stable \
-            zap-baseline.py \
-            -t http://localhost:8000 \
-            -r zap_report.html
-
-      # -------------------------
-      # 6. Upload ZAP Report
-      # -------------------------
-      - name: Upload ZAP Report
+      - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: zap_report.html
+          name: coverage-report
+          path: coverage.xml
+
+  zap_scan:
+    name: OWASP ZAP Full Security Scan
+    needs: build_test_sonar
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Build Docker image for Python App
+      - name: Build Docker Image
+        run: docker build -t myapp .
+
+      # Run the container
+      - name: Run Docker Container
+        run: |
+          docker run -d --name myapp -p 8000:8000 myapp
+          sleep 20
+
+      # Run ZAP Full Scan
+      - name: ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: "http://localhost:8000"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          cmd_options: "-a"        # Active scan enabled
+
+      - name: Stop Docker
+        run: docker stop myapp
