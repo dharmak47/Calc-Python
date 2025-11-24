@@ -1,52 +1,15 @@
-name: Build, Scan, and Test
+FROM python:3.12-slim
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    types: [opened, synchronize, reopened]
-  schedule:
-    - cron: '0 0 * * *'  # Nightly scan at 00:00 UTC
-
-jobs:
-  build-and-scan:
-    name: Unit Tests + SonarQube + Docker Build + OWASP ZAP Scan
-    runs-on: ubuntu-latest
-
-    steps:
-      # Checkout repository
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Set up Python
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-
-    
+WORKDIR /app
 
 
-      # Build Docker Image (no push)
-      - name: Build Docker Image
-        run: |
-          docker build -t brahadees/myapp:latest .
+COPY src/ .
 
-      # Install Flask and start app in background
-      - name: Install dependencies and start Flask app
-        run: |
-          pip install flask
-          nohup python src/main.py &  # Start Flask app in background
 
-      # Wait for Flask API to start
-      - name: Wait for Flask API
-        run: sleep 10  # Wait for 10 seconds for Flask to start
+RUN pip install flask
 
-      - name: ZAP Full Scan
-        uses: zaproxy/action-full-scan@v0.13.0
-        with:
-          target: 'http://localhost:5000/'
-          allow_issue_writing: false
-          fail_action: false  # Set this to false to avoid failing the job if ZAP finds issues
+# Expose Flask port
+EXPOSE 5000
+
+# Run the app
+CMD ["python", "main.py"]
