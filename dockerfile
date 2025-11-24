@@ -1,11 +1,19 @@
+# Use official lightweight Python image
 FROM python:3.12-slim
 
+# Set working directory
 WORKDIR /app
 
-COPY . .
+# Copy source code
+COPY src/ ./src/
+COPY src/main.py .
+COPY requirements.txt .
 
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 8000
+# Expose Flask default port
+EXPOSE 5000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application
+CMD ["python", "main.py"]
