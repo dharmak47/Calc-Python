@@ -1,4 +1,4 @@
-name: Build, Test, SonarQube & ZAP Scan
+name: Build and Scan
 
 on:
   push:
@@ -6,89 +6,46 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
-  workflow_dispatch:
 
 jobs:
-
-  build_test_sonar:
-    name: Build, Test & SonarQube
+  build-and-scan:
+    name: Unit Tests + SonarQube + Docker Build
     runs-on: ubuntu-latest
 
     steps:
-      # -------------------------
-      # 1. Checkout Code
-      # -------------------------
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # -------------------------
-      # 2. Setup Python
-      # -------------------------
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      # Checkout repository
+      - uses: actions/checkout@v4
         with:
-          python-version: "3.12"
+          fetch-depth: 0
 
-      # -------------------------
-      # 3. Install Dependencies
-      # -------------------------
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-     
-  zap_scan:
-    name: OWASP ZAP Full Security Scan
-    needs: build_test_sonar
-    runs-on: ubuntu-latest
-
-    steps:
-      # -------------------------
-      # 1. Checkout Code
-      # -------------------------
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # -------------------------
-      # 2. Build Docker Image
-      # -------------------------
-      - name: Build Docker Image
-        run: docker build -t myapp .
-
-      # -------------------------
-      # 3. Create Docker Network
-      # -------------------------
-      - name: Create Docker Network
-        run: docker network create zapnet
-
-      # -------------------------
-      # 4. Run Application Inside Network
-      # -------------------------
-      - name: Run Docker Container
-        run: |
-          docker run -d \
-            --network zapnet \
-            --name localhost \
-            -p 8000:8000 \
-            myapp
-          sleep 15
-
-     
-      # -------------------------
-      # 6. OWASP ZAP Full Scan
-      # -------------------------
-      - name: ZAP Full Scan
-        uses: zaproxy/action-full-scan@v0.13.0
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          target: "http://localhost:8000"     # IMPORTANT – container name used as hostname
-         
-          cmd_options: "-a"               # Enable active scan
+          python-version: '3.12'
+
+      # Install dependencies and run tests with coverage
+      - name: Install dependencies and Run Unit Tests with Coverage
+        run: |
+          pip install flask pytest pytest-cov
+          python -m pytest src/test_app.py --cov=src --cov-report=xml:coverage.xml -v
+
+      # SonarQube Scan
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
-          DOCKER_NETWORK: zapnet          # Ensure ZAP uses same network
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          extra-properties: |
+            sonar.projectKey=JOSHUACRAZES_SSDLS
+            sonar.organization=joshuacrazes
+            sonar.sources=src
+            sonar.python.coverage.reportPaths=coverage.xml
+            sonar.coverage.exclusions=**/*test*.py
+            sonar.cpd.exclusions=**/*test*.py
+            sonar.verbose=true
 
-      # -------------------------
-      # 7. Stop Application Container
-      # -------------------------
-      - name: Stop Docker Container
-        run: docker stop myapp
+      # Build Docker Image only (no push)
+      - name: Build Docker Image
+        run: |
+          docker build -t cavinjoshua/myapp:latest .
