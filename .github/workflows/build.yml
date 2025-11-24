@@ -1,18 +1,28 @@
 name: Build
+
 on:
   push:
     branches:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
 jobs:
   sonarqube:
-    name: SonarQube
+    name: SonarQube + Docker + ZAP DAST
     runs-on: ubuntu-latest
+
     steps:
+      # -------------------------
+      # 1. Checkout Code
+      # -------------------------
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0
+
+      # -------------------------
+      # 2. SonarQube Scan
+      # -------------------------
       - name: SonarQube Scan
         uses: SonarSource/sonarqube-scan-action@v6
         with:
@@ -22,3 +32,38 @@ jobs:
             -Dsonar.sources=.
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # -------------------------
+      # 3. Build Docker Image
+      # -------------------------
+      - name: Build Docker Image
+        run: |
+          docker build -t calc-python:latest .
+
+      # -------------------------
+      # 4. Run Application in Docker
+      # -------------------------
+      - name: Run App Container
+        run: |
+          docker run -d -p 8000:8000 --name calc-app calc-python:latest
+
+      # -------------------------
+      # 5. OWASP ZAP DAST Scan (Baseline)
+      # -------------------------
+      - name: OWASP ZAP Baseline Scan
+        run: |
+          docker run \
+            --network="host" \
+            -v ${{ github.workspace }}:/zap/wrk \
+            owasp/zap2docker-stable zap-baseline.py \
+            -t http://localhost:8000 \
+            -r zap_report.html
+
+      # -------------------------
+      # 6. Upload ZAP Report
+      # -------------------------
+      - name: Upload ZAP Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-report
+          path: zap_report.html
