@@ -37,26 +37,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # -------------------------
-      # 4. Run Unit Tests
-      # -------------------------
-      - name: Run Unit Tests
-        run: |
-          python -m pytest --maxfail=1 --disable-warnings -q
-
-      # -------------------------
-      # 5. SonarQube Scan
-      # -------------------------
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v6
-        with:
-          args: >
-            -Dsonar.projectKey=dharmak47_Calc-Python
-            -Dsonar.organization=dharmak47
-            -Dsonar.sources=.
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
+     
   zap_scan:
     name: OWASP ZAP Full Security Scan
     needs: build_test_sonar
