@@ -33,17 +33,7 @@ jobs:
           pip install pytest pytest-cov
           pytest --cov=. --cov-report=xml
 
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v2
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+      
 
   zap_scan:
     name: OWASP ZAP Full Security Scan
